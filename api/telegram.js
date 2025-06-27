@@ -1,81 +1,52 @@
-/*
- * The regex to get the bot_token and api_method from request URL
- * as the first and second backreference respectively.
- */
-const URL_PATH_REGEX = /^\/bot(?<bot_token>[^/]+)\/(?<api_method>[a-z]+)/i;
+export default async function handler(req) {
+  try {
+    const url = new URL(req.url);
+    const pathRegex = /^\/api\/telegram\/bot([^\/]+)\/([^\/\?]+)/;
+    const match = url.pathname.match(pathRegex);
 
-/**
- * Sends a POST request with JSON data to Telegram Bot API
- * and reads in the response body.
- * @param {Request} request the incoming request
- */
-async function handleTelegramRequest(request) {
-	const url = new URL(request.url);
+    if (!match) {
+      return new Response(
+        JSON.stringify({ ok: false, description: "Invalid URL" }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
 
-	// point the URL to Telegram Bot API
-	url.hostname = 'api.telegram.org';
+    const [, token, method] = match;
 
-	// create a new request with the modified URL
-	const newRequest = new Request(url.toString(), request);
+    const telegramApiUrl = `https://api.telegram.org/bot${token}/${method}${url.search}`;
 
-	// Get the response from API.
-	const response = await fetch(newRequest);
+    const options = {
+      method: req.method,
+      headers: {
+        "content-type": req.headers.get("content-type") || "application/json",
+      },
+    };
 
-	return response;
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      options.body = await req.text();
+    }
+
+    const response = await fetch(telegramApiUrl, options);
+    const responseText = await response.text();
+
+    return new Response(responseText, {
+      status: response.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error_code: 500,
+        description: error.message,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 }
-
-/**
- * Handles the request to the root
- */
-function handleRootRequest() {
-	const result = 'Everything looks good! You are ready to use your CloudFlare worker.';
-
-	return new Response(JSON.stringify({ ok: true, result }), {
-		status: 200,
-		statusText: result,
-		headers: {
-			'content-type': 'application/json',
-		},
-	});
-}
-
-/**
- * Handles the 404 request
- */
-async function handle404Request() {
-	const description = 'No matching route found';
-	const error_code = 404;
-
-	return new Response(JSON.stringify({ ok: false, error_code, description }), {
-		status: error_code,
-		statusText: description,
-		headers: {
-			'content-type': 'application/json',
-		},
-	});
-}
-
-/**
- * Handles the incoming request.
- * @param {Request} request the incoming request.
- */
-async function handleRequest(request) {
-	const { pathname } = new URL(request.url);
-
-	if (URL_PATH_REGEX.test(pathname)) {
-		return await handleTelegramRequest(request);
-	}
-
-	if (pathname === '/') {
-		return handleRootRequest();
-	}
-
-	return handle404Request();
-}
-
-/**
- * Hook into the fetch event.
- */
-addEventListener('fetch', (event) => {
-	event.respondWith(handleRequest(event.request));
-});
