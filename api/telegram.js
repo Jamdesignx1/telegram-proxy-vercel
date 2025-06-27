@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
   const [_, token, apiMethod] = match;
 
-  const tgUrl = `https://api.telegram.org/bot${token}/${apiMethod}?${searchParams}`;
+  const tgUrl = `https://api.telegram.org/`;
 
   try {
     const telegramRes = await fetch(tgUrl, {
