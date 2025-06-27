@@ -3,12 +3,12 @@ export const config = {
 };
 
 export default async function handler(req) {
-  const { pathname, search } = new URL(req.url);
-  const match = pathname.match(/^\/api\/telegram\/bot([^/]+)\/([a-zA-Z_]+)/);
+  const url = new URL(req.url);
+  const match = url.pathname.match(/^\/api\/telegram\/bot([^/]+)\/([^/?]+)/);
 
   if (match) {
     const [, token, method] = match;
-    const tgUrl = `https://api.telegram.org/bot${token}/${method}${search}`;
+    const tgUrl = `https://api.telegram.org/bot${token}/${method}${url.search}`;
 
     const tgReq = new Request(tgUrl, {
       method: req.method,
