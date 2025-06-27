@@ -1,40 +1,43 @@
-export const config = {
-  runtime: 'edge',
-};
+export default async function handler(req, res) {
+  const { url, method, headers } = req;
+  const { searchParams, pathname } = new URL(req.url);
 
-export default async function handler(req) {
-  const url = new URL(req.url);
-  const match = url.pathname.match(/^\/api\/telegram\/bot([^/]+)\/([^/?]+)/);
+  // مطمئن شو مسیر درست باشه
+  const regex = /^\/api\/telegram\/bot([^/]+)\/(.+)$/;
+  const match = pathname.match(regex);
 
-  if (match) {
-    const [, token, method] = match;
-    const tgUrl = `https://api.telegram.org/bot${token}/${method}${url.search}`;
-
-    const tgReq = new Request(tgUrl, {
-      method: req.method,
-      headers: {
-        "content-type": req.headers.get("content-type") || "application/json",
-      },
-      body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : null,
-    });
-
-    try {
-      const tgRes = await fetch(tgReq);
-      const tgBody = await tgRes.text();
-      return new Response(tgBody, {
-        status: tgRes.status,
-        headers: { "content-type": "application/json" },
-      });
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, error_code: 500, description: e.message }), {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      });
-    }
+  if (!match) {
+    return new Response(
+      JSON.stringify({ ok: false, description: "Invalid URL structure" }),
+      { status: 404, headers: { "Content-Type": "application/json" } }
+    );
   }
 
-  return new Response(JSON.stringify({ ok: false, description: "Invalid URL" }), {
-    status: 404,
-    headers: { "content-type": "application/json" },
-  });
+  const [_, token, apiMethod] = match;
+
+  const tgUrl = `https://api.telegram.org/bot${token}/${apiMethod}?${searchParams}`;
+
+  try {
+    const telegramRes = await fetch(tgUrl, {
+      method,
+      headers: {
+        "content-type": headers.get("content-type") || "application/json",
+      },
+      body: method !== "GET" && method !== "HEAD" ? await req.text() : undefined,
+    });
+
+    const body = await telegramRes.text();
+
+    return new Response(body, {
+      status: telegramRes.status,
+      headers: {
+        "content-type": "application/json",
+      },
+    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ ok: false, error_code: 500, description: err.message }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
 }
